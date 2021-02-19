@@ -1,6 +1,6 @@
 {
   "name": "@oscarltz/workspace-dev-runner",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "main": "dist/index.js",
   "description": "Build packages and runtime",
   "files": [
