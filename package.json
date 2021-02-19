@@ -8,7 +8,7 @@
     "index.js"
   ],
   "bin": {
-    "ws-dev-runner": "./index.js"
+    "ws-dev-runner": "index.js"
   },
   "repository": {
     "type": "git",
