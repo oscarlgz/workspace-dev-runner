@@ -7,11 +7,10 @@ program.version('__VERSION__')
 
 export const createProgram = () => {
   program
-    .command('dev')
+    .command('start')
     .description('Build your packages')
     .option('-f, --force', 'Force building dependencies even if exist', false)
     .option('-p, --package-name <string>', 'Build for specified package')
-    .requiredOption('-s, --script <string>', 'Runtime script')
     .action(runDev)
 
   return program

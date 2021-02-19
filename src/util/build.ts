@@ -81,7 +81,7 @@ export const buildDependencies = (
   })
 
 export const spawnRuntime = (packageDir: string, options: OptionValues) => {
-  const proc = spawn('node', [options.script], {
+  const proc = spawn('yarn start', {
     stdio: 'inherit',
     cwd: packageDir,
   })
