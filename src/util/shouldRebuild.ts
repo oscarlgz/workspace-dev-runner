@@ -7,6 +7,11 @@ import { getTsConfigHash, getTsVersion } from './typescript'
 import { getOrderedDependenciesForPackage } from './dependencies'
 import { getPackageDir } from './package'
 
+type ChangeFile = {
+  hashes: Record<string, string>
+  logs: Record<string, string>
+}
+
 const getDirectoryHash = async (
   packageInfo: PackageInfo,
   packageMap: PackageInfos,
@@ -41,7 +46,7 @@ const getLatestChangeFileName = () => {
   return join(wsRoot, '.lc')
 }
 
-const readChangeFile = () => {
+const readChangeFile = (): ChangeFile => {
   const fileName = getLatestChangeFileName()
 
   return JSON.parse(
@@ -55,12 +60,14 @@ export const writeLatestChangeToDisk = async (
   packageInfo: PackageInfo,
   packageMap: PackageInfos
 ) => {
-  let changeMap: Record<string, string>
+  let changeMap: ChangeFile['hashes']
 
   const fileName = getLatestChangeFileName()
 
   try {
-    changeMap = readChangeFile()
+    const changeFile = readChangeFile()
+
+    changeMap = changeFile.hashes
   } catch (e) {
     changeMap = {}
   }
@@ -74,7 +81,9 @@ export const shouldRebuild = async (packageInfo: PackageInfo, packageMap: Packag
   let changeMap: Record<string, string>
 
   try {
-    changeMap = readChangeFile()
+    const changeFile = readChangeFile()
+
+    changeMap = changeFile.hashes
   } catch (_) {
     return true
   }
