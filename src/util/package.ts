@@ -1,9 +1,9 @@
 import { OptionValues } from 'commander'
 import inquirer from 'inquirer'
 import { getPackageInfos } from 'workspace-tools'
+import { PackageInfo, PackageInfos } from '../types'
 import { exitWithMessage } from './process'
 import { getWsRoot } from './workspace'
-import { PackageInfo, PackageInfos } from '../types'
 
 export const getPackageDir = (packageInfo: PackageInfo) =>
   packageInfo.packageJsonPath.replace(/\/package\.json$/, '')
@@ -18,14 +18,14 @@ export const createPackageLookupByPathFunc = (packageMap: PackageInfos) => {
   return (path: string) => {
     const packageInfo = packagePaths.find(([re]) => re.test(path))
 
-    return packageInfo && packageInfo[1]
+    return packageInfo?.[1]
   }
 }
 
 export const getPackageInfosFromPackagePath = (packagePath: string) => getPackageInfos(packagePath)
 
 export const getRuntimePackageInfo = async (options: OptionValues) => {
-  let packageName: string
+  let packageNames: string[]
 
   const wsRoot = getWsRoot()
 
@@ -38,19 +38,19 @@ export const getRuntimePackageInfo = async (options: OptionValues) => {
       return exitWithMessage('Package name not in dependency list')
     }
 
-    packageName = options.packageName
+    packageNames = options.packageName
   } else {
-    packageName = await inquirer
+    packageNames = await inquirer
       .prompt([
         {
-          type: 'list',
-          name: 'packageName',
+          type: 'checkbox',
+          name: 'packageNames',
           message: 'Choose package: ',
           choices: packageNameList,
         },
       ])
-      .then(({ packageName }) => packageName)
+      .then((answers) => answers.packageNames)
   }
 
-  return packageMap[packageName]
+  return packageNames.map((packageName) => packageMap[packageName])
 }
