@@ -1,7 +1,6 @@
 import inquirer from 'inquirer'
 import { getPackageInfos } from 'workspace-tools'
-import { PackageInfo, PackageInfos } from '../types'
-import { ProgramStartOptions } from '../types'
+import { PackageInfo, PackageInfos, ProgramStartOptions } from '../types'
 import { exitWithMessage } from './process'
 import { getWsRoot } from './workspace'
 
@@ -12,6 +11,7 @@ export const createPackageLookupByPathFunc = (packageMap: PackageInfos) => {
   const packagePaths = Object.values(packageMap).map<[RegExp, string]>((packageInfo) => {
     const packageDir = getPackageDir(packageInfo)
 
+    // eslint-disable-next-line security/detect-non-literal-regexp
     return [new RegExp(`^${packageDir}`, 'i'), packageInfo.name]
   }, {})
 

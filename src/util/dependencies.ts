@@ -3,6 +3,29 @@ import { DepGraph } from 'dependency-graph'
 import { pick, uniq } from 'lodash/fp'
 import { DependencyMap, PackageInfo, PackageInfos } from '../types'
 
+export const orderDependencies = (dependencyMap: DependencyMap) => {
+  const dependencyGraph = new DepGraph()
+
+  for (const key of dependencyMap.keys()) {
+    dependencyGraph.addNode(key)
+  }
+
+  for (const [key, depencencyList] of dependencyMap.entries()) {
+    for (const dependencyName of depencencyList.values()) {
+      if (dependencyGraph.hasNode(dependencyName)) {
+        dependencyGraph.addDependency(key, dependencyName)
+      }
+    }
+  }
+
+  try {
+    return dependencyGraph.overallOrder()
+  } catch (e) {
+    console.log(e)
+    throw e
+  }
+}
+
 export const getOrderedDependenciesForPackages = (
   packageInfoList: PackageInfo[],
   packageMap: PackageInfos
@@ -27,34 +50,9 @@ export const getOrderedDependenciesForPackages = (
 }
 
 export const getOrderedDependentsForPackage = (packageName: string, packageMap: PackageInfos) => {
-  let dependencyList: string[]
-
-  dependencyList = getTransitiveConsumers([packageName], packageMap)
+  const dependencyList = getTransitiveConsumers([packageName], packageMap)
 
   const dependencyMap = getDependentMap(pick(dependencyList, packageMap))
 
   return orderDependencies(dependencyMap)
-}
-
-export const orderDependencies = (dependencyMap: DependencyMap) => {
-  const dependencyGraph = new DepGraph()
-
-  for (const key of dependencyMap.keys()) {
-    dependencyGraph.addNode(key)
-  }
-
-  for (const [key, depencencyList] of dependencyMap.entries()) {
-    for (let dependencyName of depencencyList.values()) {
-      if (dependencyGraph.hasNode(dependencyName)) {
-        dependencyGraph.addDependency(key, dependencyName)
-      }
-    }
-  }
-
-  try {
-    return dependencyGraph.overallOrder()
-  } catch (e) {
-    console.log(e)
-    throw e
-  }
 }

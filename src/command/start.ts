@@ -1,22 +1,25 @@
-import { getPackageDir } from '../util/package'
+import { OptionValues } from 'commander'
+import {
+  getPackageDir,
+  getPackageInfosFromPackagePath,
+  getRuntimePackageInfo,
+} from '../util/package'
 import { buildDependencies, watchAndRunRuntimePackage } from '../util/build'
-import { getOrderedDependenciesForPackages } from '../util/dependencies'
-import { getPackageInfosFromPackagePath, getRuntimePackageInfo } from '../util/package'
-import { ProgramStartOptions } from '../types'
+import { getOrderedDependenciesForPackage } from '../util/dependencies'
 
-export const runDev = async (options: ProgramStartOptions) => {
-  const packageInfoList = await getRuntimePackageInfo(options)
+export const runDev = async (options: OptionValues) => {
+  const packageInfo = await getRuntimePackageInfo(options)
 
-  const packagePaths = packageInfoList.map((packageInfo) => getPackageDir(packageInfo))
+  const packagePath = getPackageDir(packageInfo)
 
-  const packageMap = getPackageInfosFromPackagePath(packagePaths[0])
+  const packageMap = getPackageInfosFromPackagePath(packagePath)
 
-  const orderedDependencyList = getOrderedDependenciesForPackages(packageInfoList, packageMap)
+  const orderedDependencyList = getOrderedDependenciesForPackage(packageInfo, packageMap)
 
   await buildDependencies(orderedDependencyList, packageMap, {
     force: options.force,
     initial: true,
   })
 
-  // watchAndRunRuntimePackage(packageInfo, packageMap)
+  watchAndRunRuntimePackage(packageInfo, packageMap)
 }

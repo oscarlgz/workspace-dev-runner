@@ -21,6 +21,7 @@ export const buildDependencies = (
   packageMap: PackageInfos,
   options?: BuildOptions
 ): Bromise<boolean> =>
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   new Bromise(async (resolve, reject, onCancel) => {
     let spinner: Spinner
 
@@ -69,7 +70,7 @@ export const buildDependencies = (
           }
         }
 
-        writeLatestChangeToDisk(packageInfo, packageMap)
+        await writeLatestChangeToDisk(packageInfo, packageMap)
 
         spinner.succeed(`${progress} Built package ${pgkName}`)
       } else {
@@ -126,6 +127,7 @@ export const watchAndRunRuntimePackage = async (
       ignored: ['**/node_modules/**', '**/dist/**'],
       ignoreInitial: true,
     })
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     .on('all', async (_, path) => {
       const packageName = packageLookup(path)
 
