@@ -1,15 +1,15 @@
+import fs from 'fs'
 import chalk from 'chalk'
 import chokidar from 'chokidar'
 import { spawn } from 'child_process'
-import { OptionValues } from 'commander'
 import Bromise from 'bluebird'
+import { PackageInfo, PackageInfos } from '../types'
 import { createPackageLookupByPathFunc, getPackageDir } from './package'
 import { Spinner } from './spinner'
-import { PackageInfo, PackageInfos } from '../types'
 import { shouldRebuild, writeLatestChangeToDisk } from './shouldRebuild'
 import { clearConsole, runAsync } from './process'
 import { filterOutRuntimePackages, getWsRoot, isRootLockfile } from './workspace'
-import { getOrderedDependenciesForPackage, getOrderedDependentsForPackage } from './dependencies'
+import { getOrderedDependenciesForPackages, getOrderedDependentsForPackage } from './dependencies'
 
 type BuildOptions = {
   initial?: boolean
@@ -80,32 +80,47 @@ export const buildDependencies = (
     return resolve(true)
   })
 
-export const spawnRuntime = (packageDir: string, options: OptionValues) => {
-  const proc = spawn('yarn start', {
-    stdio: 'inherit',
+export const spawnRuntime = (packageInfo: PackageInfo) => {
+  const packageDir = getPackageDir(packageInfo)
+
+  const logFile = fs.createWriteStream('/Users/oscarlgz/Sites/test/logFile.log', { flags: 'a' })
+
+  const proc = spawn('yarn', ['start'], {
     cwd: packageDir,
   })
+
+  proc.stdout.pipe(logFile)
+  proc.stderr.pipe(logFile)
+
+  console.log(
+    chalk.green.bold(
+      `▶ Running package ${chalk.white.bold(
+        packageInfo.name
+      )}, see logs by running ${chalk.white.bold(`ws-dev-runner logs ${packageInfo.name}`)}`
+    )
+  )
 
   return proc
 }
 
 export const watchAndRunRuntimePackage = async (
-  packageInfo: PackageInfo,
-  packageMap: PackageInfos,
-  options: OptionValues
+  packageInfoList: PackageInfo[],
+  packageMap: PackageInfos
 ) => {
-  const packageDir = getPackageDir(packageInfo)
-
   const wsRoot = getWsRoot()
 
   const packageLookup = createPackageLookupByPathFunc(packageMap)
 
-  const runtimePackageDependencyList = getOrderedDependenciesForPackage(packageInfo, packageMap)
+  const runtimePackageDependencyList = getOrderedDependenciesForPackages(
+    packageInfoList,
+    packageMap
+  )
 
   let dependencyBuilder: Bromise<boolean> | undefined | null
 
-  let runtimeProc = spawnRuntime(packageDir, options)
+  let runtimeProc = spawnRuntime(packageInfoList)
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename
   chokidar
     .watch(wsRoot, {
       ignored: ['**/node_modules/**', '**/dist/**'],
@@ -142,7 +157,7 @@ export const watchAndRunRuntimePackage = async (
       dependencyBuilder = null
 
       if (success) {
-        runtimeProc = spawnRuntime(packageDir, options)
+        runtimeProc = spawnRuntime(packageInfo)
       }
     })
 }

@@ -1,7 +1,7 @@
-import { OptionValues } from 'commander'
 import inquirer from 'inquirer'
 import { getPackageInfos } from 'workspace-tools'
 import { PackageInfo, PackageInfos } from '../types'
+import { ProgramStartOptions } from '../types'
 import { exitWithMessage } from './process'
 import { getWsRoot } from './workspace'
 
@@ -24,7 +24,7 @@ export const createPackageLookupByPathFunc = (packageMap: PackageInfos) => {
 
 export const getPackageInfosFromPackagePath = (packagePath: string) => getPackageInfos(packagePath)
 
-export const getRuntimePackageInfo = async (options: OptionValues) => {
+export const getRuntimePackageInfo = async (options: ProgramStartOptions) => {
   let packageNames: string[]
 
   const wsRoot = getWsRoot()
@@ -33,12 +33,14 @@ export const getRuntimePackageInfo = async (options: OptionValues) => {
 
   const packageNameList = Object.keys(packageMap)
 
-  if (options.packageName) {
-    if (!packageNameList.includes(options.packageName)) {
-      return exitWithMessage('Package name not in dependency list')
-    }
+  if (options.packageNames) {
+    options.packageNames.forEach((packageName) => {
+      if (!packageNameList.includes(packageName)) {
+        return exitWithMessage('Package name not in dependency list')
+      }
+    })
 
-    packageNames = options.packageName
+    packageNames = options.packageNames
   } else {
     packageNames = await inquirer
       .prompt([

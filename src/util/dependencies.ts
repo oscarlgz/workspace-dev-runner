@@ -1,17 +1,21 @@
 import { getDependentMap, getTransitiveConsumers, getTransitiveProviders } from 'workspace-tools'
 import { DepGraph } from 'dependency-graph'
-import { pick } from 'lodash/fp'
+import { pick, uniq } from 'lodash/fp'
 import { DependencyMap, PackageInfo, PackageInfos } from '../types'
 
-export const getOrderedDependenciesForPackage = (
-  packageInfo: PackageInfo,
+export const getOrderedDependenciesForPackages = (
+  packageInfoList: PackageInfo[],
   packageMap: PackageInfos
 ) => {
   const ownDependencyMap: Map<string, Set<string>> = new Map()
 
   const dependencyMap = getDependentMap(packageMap)
 
-  const transitiveProviders = getTransitiveProviders([packageInfo.name], packageMap)
+  const transitiveProviders = uniq(
+    packageInfoList
+      .map((packageInfo) => getTransitiveProviders([packageInfo.name], packageMap))
+      .flat()
+  )
 
   for (const [key, depencencyList] of dependencyMap.entries()) {
     if (transitiveProviders.includes(key)) {
