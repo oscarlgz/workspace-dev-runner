@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { runDev } from './command/dev'
+import { runDev } from './command/start'
 
 const program = new Command()
 
