@@ -20,10 +20,13 @@ export const runAsync = (
   command: string,
   args?: readonly string[],
   options?: SpawnOptions
-): Bromise<void | {
-  code: number
-  output: Array<{ stdout: string } | { stderr: string }>
-}> =>
+): Bromise<
+  | undefined
+  | {
+      code: number
+      output: Array<{ stdout: string } | { stderr: string }>
+    }
+> =>
   new Bromise((resolve, reject, onCancel) => {
     let proc: ChildProcess
 

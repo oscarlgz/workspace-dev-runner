@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-misused-promises, no-console */
 import chalk from 'chalk'
 import chokidar from 'chokidar'
 import { spawn } from 'child_process'
@@ -21,6 +20,7 @@ export const buildDependencies = (
   packageMap: PackageInfos,
   options?: BuildOptions
 ): Bromise<boolean> =>
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   new Bromise(async (resolve, reject, onCancel) => {
     let spinner: Spinner
 
@@ -63,7 +63,6 @@ export const buildDependencies = (
           })
 
           if (options?.initial === true) {
-            /* eslint-disable no-process-exit */
             process.exit(1)
           } else {
             return reject(false)
@@ -109,6 +108,7 @@ export const watchAndRunRuntimePackage = (packageInfo: PackageInfo, packageMap: 
       ignored: ['**/node_modules/**', '**/dist/**'],
       ignoreInitial: true,
     })
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     .on('all', async (_, path) => {
       const packageName = packageLookup(path)
 

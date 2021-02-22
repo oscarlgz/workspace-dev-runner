@@ -1,9 +1,9 @@
 import { OptionValues } from 'commander'
 import inquirer from 'inquirer'
 import { getPackageInfos } from 'workspace-tools'
+import { PackageInfo, PackageInfos } from '../types'
 import { exitWithMessage } from './process'
 import { getWsRoot } from './workspace'
-import { PackageInfo, PackageInfos } from '../types'
 
 export const getPackageDir = (packageInfo: PackageInfo) =>
   packageInfo.packageJsonPath.replace(/\/package\.json$/, '')
@@ -12,13 +12,14 @@ export const createPackageLookupByPathFunc = (packageMap: PackageInfos) => {
   const packagePaths = Object.values(packageMap).map<[RegExp, string]>((packageInfo) => {
     const packageDir = getPackageDir(packageInfo)
 
+    // eslint-disable-next-line security/detect-non-literal-regexp
     return [new RegExp(`^${packageDir}`, 'i'), packageInfo.name]
   }, {})
 
   return (path: string) => {
     const packageInfo = packagePaths.find(([re]) => re.test(path))
 
-    return packageInfo && packageInfo[1]
+    return packageInfo?.[1]
   }
 }
 
@@ -49,7 +50,7 @@ export const getRuntimePackageInfo = async (options: OptionValues) => {
           choices: packageNameList,
         },
       ])
-      .then(({ packageName }) => packageName)
+      .then((answers) => answers.packageName)
   }
 
   return packageMap[packageName]
