@@ -21,5 +21,5 @@ export const runDev = async (options: OptionValues) => {
     initial: true,
   })
 
-  watchAndRunRuntimePackage(packageInfo, packageMap, options)
+  watchAndRunRuntimePackage(packageInfo, packageMap)
 }

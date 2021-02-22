@@ -1,11 +1,11 @@
+/* eslint-disable @typescript-eslint/no-misused-promises, no-console */
 import chalk from 'chalk'
 import chokidar from 'chokidar'
 import { spawn } from 'child_process'
-import { OptionValues } from 'commander'
 import Bromise from 'bluebird'
+import { PackageInfo, PackageInfos } from '../types'
 import { createPackageLookupByPathFunc, getPackageDir } from './package'
 import { Spinner } from './spinner'
-import { PackageInfo, PackageInfos } from '../types'
 import { shouldRebuild, writeLatestChangeToDisk } from './shouldRebuild'
 import { clearConsole, runAsync } from './process'
 import { filterOutRuntimePackages, getWsRoot, isRootLockfile } from './workspace'
@@ -63,13 +63,14 @@ export const buildDependencies = (
           })
 
           if (options?.initial === true) {
+            /* eslint-disable no-process-exit */
             process.exit(1)
           } else {
             return reject(false)
           }
         }
 
-        writeLatestChangeToDisk(packageInfo, packageMap)
+        await writeLatestChangeToDisk(packageInfo, packageMap)
 
         spinner.succeed(`${progress} Built package ${pgkName}`)
       } else {
@@ -80,7 +81,7 @@ export const buildDependencies = (
     return resolve(true)
   })
 
-export const spawnRuntime = (packageDir: string, options: OptionValues) => {
+export const spawnRuntime = (packageDir: string) => {
   const proc = spawn('yarn start', {
     stdio: 'inherit',
     cwd: packageDir,
@@ -89,11 +90,7 @@ export const spawnRuntime = (packageDir: string, options: OptionValues) => {
   return proc
 }
 
-export const watchAndRunRuntimePackage = async (
-  packageInfo: PackageInfo,
-  packageMap: PackageInfos,
-  options: OptionValues
-) => {
+export const watchAndRunRuntimePackage = (packageInfo: PackageInfo, packageMap: PackageInfos) => {
   const packageDir = getPackageDir(packageInfo)
 
   const wsRoot = getWsRoot()
@@ -104,8 +101,9 @@ export const watchAndRunRuntimePackage = async (
 
   let dependencyBuilder: Bromise<boolean> | undefined | null
 
-  let runtimeProc = spawnRuntime(packageDir, options)
+  let runtimeProc = spawnRuntime(packageDir)
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename
   chokidar
     .watch(wsRoot, {
       ignored: ['**/node_modules/**', '**/dist/**'],
@@ -142,7 +140,7 @@ export const watchAndRunRuntimePackage = async (
       dependencyBuilder = null
 
       if (success) {
-        runtimeProc = spawnRuntime(packageDir, options)
+        runtimeProc = spawnRuntime(packageDir)
       }
     })
 }

@@ -8,7 +8,7 @@ export class Spinner {
     this.spinner = ora()
   }
 
-  start(title?: string, message = '') {
+  public start(title?: string, message = '') {
     if (title) {
       this.spinner.start(`${chalk.bold.cyan(title)} ${message}`)
     } else {
@@ -18,25 +18,25 @@ export class Spinner {
     return this
   }
 
-  update(title: string, message = '') {
+  public update(title: string, message = '') {
     this.spinner.text = `${chalk.bold.cyan(title)} ${message}`
 
     return this
   }
 
-  succeed(title: string, message = '') {
+  public succeed(title: string, message = '') {
     this.spinner.succeed(`${chalk.bold.green(title)} ${message}`)
 
     return this
   }
 
-  fail(title: string, message = '') {
+  public fail(title: string, message = '') {
     this.spinner.fail(`${chalk.bold.red(title)} ${message}`)
 
     return this
   }
 
-  stop() {
+  public stop() {
     this.spinner.stop()
 
     return this
