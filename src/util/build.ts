@@ -1,12 +1,18 @@
 import fs from 'fs'
 import chalk from 'chalk'
 import chokidar from 'chokidar'
-import { spawn } from 'child_process'
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 import Bromise from 'bluebird'
-import { PackageInfo, PackageInfos } from '../types'
-import { createPackageLookupByPathFunc, getPackageDir } from './package'
+import { intersection } from 'lodash/fp'
+import { PackageInfo, PackageInfos, ProgramStartOptions } from '../types'
+import {
+  createPackageLookupByPathFunc,
+  getPackageDir,
+  getPackageInfosFromPackagePath,
+} from './package'
 import { Spinner } from './spinner'
-import { shouldRebuild, writeLatestChangeToDisk } from './shouldRebuild'
+import { getPackageHash, shouldRebuild } from './packageHash'
+import { writePackageHash } from './pfile'
 import { clearConsole, runAsync } from './process'
 import { filterOutRuntimePackages, getWsRoot, isRootLockfile } from './workspace'
 import { getOrderedDependenciesForPackages, getOrderedDependentsForPackage } from './dependencies'
@@ -19,15 +25,13 @@ type BuildOptions = {
 export const buildDependencies = (
   orderedDependencyList: string[],
   packageMap: PackageInfos,
-  options?: BuildOptions
+  options: BuildOptions
 ): Bromise<boolean> =>
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
   new Bromise(async (resolve, reject, onCancel) => {
     let spinner: Spinner
 
     let proc: ReturnType<typeof runAsync> | undefined
-
-    clearConsole()
 
     onCancel?.(() => {
       spinner.stop()
@@ -70,7 +74,9 @@ export const buildDependencies = (
           }
         }
 
-        await writeLatestChangeToDisk(packageInfo, packageMap)
+        const hash = await getPackageHash(packageInfo, packageMap)
+
+        writePackageHash(packageInfo, hash)
 
         spinner.succeed(`${progress} Built package ${pgkName}`)
       } else {
@@ -104,22 +110,21 @@ export const spawnRuntime = (packageInfo: PackageInfo) => {
   return proc
 }
 
-export const watchAndRunRuntimePackage = async (
-  packageInfoList: PackageInfo[],
-  packageMap: PackageInfos
+export const watchAndRunRuntimePackage = (
+  runtimePackageInfoList: PackageInfo[],
+  options: ProgramStartOptions
 ) => {
   const wsRoot = getWsRoot()
 
-  const packageLookup = createPackageLookupByPathFunc(packageMap)
-
-  const runtimePackageDependencyList = getOrderedDependenciesForPackages(
-    packageInfoList,
-    packageMap
-  )
-
   let dependencyBuilder: Bromise<boolean> | undefined | null
 
-  let runtimeProc = spawnRuntime(packageInfoList)
+  const runtimeProcMap = runtimePackageInfoList.reduce<
+    Record<string, ChildProcessWithoutNullStreams>
+  >((acc, packageInfo) => {
+    acc[packageInfo.name] = spawnRuntime(packageInfo)
+
+    return acc
+  }, {})
 
   // eslint-disable-next-line security/detect-non-literal-fs-filename
   chokidar
@@ -129,28 +134,56 @@ export const watchAndRunRuntimePackage = async (
     })
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     .on('all', async (_, path) => {
+      const packagePath = getPackageDir(runtimePackageInfoList[0])
+
+      const packageMap = getPackageInfosFromPackagePath(packagePath)
+
+      const packageLookup = createPackageLookupByPathFunc(packageMap)
+
+      const runtimePackageDependencyList = getOrderedDependenciesForPackages(
+        runtimePackageInfoList,
+        packageMap
+      )
+
       const packageName = packageLookup(path)
 
-      let buildArgs: [string[], PackageInfos, BuildOptions?]
+      let buildArgs: [string[], PackageInfos, ProgramStartOptions]
 
       if (isRootLockfile(path)) {
-        buildArgs = [runtimePackageDependencyList, packageMap, { force: true }]
+        buildArgs = [runtimePackageDependencyList, packageMap, { ...options, force: true }]
       } else if (packageName && runtimePackageDependencyList.includes(packageName)) {
         const orderedDependencyList = [
           packageName,
           ...getOrderedDependentsForPackage(packageName, packageMap),
         ]
 
-        buildArgs = [filterOutRuntimePackages(orderedDependencyList, packageMap), packageMap]
+        buildArgs = [
+          filterOutRuntimePackages(orderedDependencyList, packageMap),
+          packageMap,
+          options,
+        ]
       } else {
         return
       }
+
+      clearConsole()
 
       if (dependencyBuilder) {
         dependencyBuilder.cancel()
       }
 
-      runtimeProc.kill()
+      for (const key of Object.keys(runtimeProcMap)) {
+        if (
+          intersection(
+            getOrderedDependenciesForPackages([packageMap[key]], packageMap),
+            buildArgs[0]
+          ).length
+        ) {
+          console.log(chalk.magenta.bold(`ℹ Reloading runtime: ${chalk.white.bold(key)}`))
+
+          runtimeProcMap[key].kill()
+        }
+      }
 
       dependencyBuilder = buildDependencies(...buildArgs)
 
@@ -159,7 +192,11 @@ export const watchAndRunRuntimePackage = async (
       dependencyBuilder = null
 
       if (success) {
-        runtimeProc = spawnRuntime(packageInfo)
+        for (const key of Object.keys(runtimeProcMap)) {
+          if (runtimeProcMap[key].killed) {
+            runtimeProcMap[key] = spawnRuntime(packageMap[key])
+          }
+        }
       }
     })
 }
