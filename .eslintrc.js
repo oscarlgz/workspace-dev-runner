@@ -6,5 +6,6 @@ module.exports = {
   rules: {
     'no-console': 'off',
     'no-process-exit': 'off',
+    'security/detect-non-literal-fs-filename': 'off',
   },
 }
