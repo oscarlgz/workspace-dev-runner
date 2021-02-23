@@ -34,9 +34,9 @@ const writePFile = (data: PFile) => {
 
 export const getHashForPackage = (packageInfo: PackageInfo) => {
   try {
-    const changeFile = readPFile()
+    const pfile = readPFile()
 
-    return changeFile.hashes?.[packageInfo.name]
+    return pfile.hashes?.[packageInfo.name]
   } catch (_) {
     return undefined
   }
@@ -44,11 +44,17 @@ export const getHashForPackage = (packageInfo: PackageInfo) => {
 
 export const getLogForPackage = (packageInfo: PackageInfo) => {
   try {
-    const changeFile = readPFile()
+    const pfile = readPFile()
 
-    return changeFile.logs?.[packageInfo.name]
+    const logFileName = pfile.logs?.[packageInfo.name]
+
+    if (!logFileName) {
+      throw new Error(`No logfile entry for ${packageInfo.name}`)
+    }
+
+    return logFileName
   } catch (_) {
-    return undefined
+    throw new Error(`Could not read pfile`)
   }
 }
 
