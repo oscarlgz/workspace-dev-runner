@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { runDev } from './command/start'
+import { runLog } from './command/log'
 
 const program = new Command()
 
@@ -16,8 +17,8 @@ export const createProgram = () => {
   program
     .command('log')
     .description('Log runtime output')
-    .option('-p, --package-name <package>', 'Build for specified package')
-    .action(runDev)
+    .option('-p, --package-names <package...>', 'Log specified packages')
+    .action(runLog)
 
   return program
 }
