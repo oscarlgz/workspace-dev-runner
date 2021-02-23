@@ -12,8 +12,9 @@ import {
 } from './package'
 import { Spinner } from './spinner'
 import { getPackageHash, shouldRebuild } from './packageHash'
-import { writePackageHash } from './pfile'
+import { getLogForPackage, writePackageHash } from './pfile'
 import { clearConsole, runAsync } from './process'
+import { transformErrStream, transformOutStream } from './stream'
 import { filterOutRuntimePackages, getWsRoot, isRootLockfile } from './workspace'
 import { getOrderedDependenciesForPackages, getOrderedDependentsForPackage } from './dependencies'
 
@@ -90,14 +91,16 @@ export const buildDependencies = (
 export const spawnRuntime = (packageInfo: PackageInfo) => {
   const packageDir = getPackageDir(packageInfo)
 
-  const logFile = fs.createWriteStream('/Users/oscarlgz/Sites/test/logFile.log', { flags: 'a' })
+  const logFileName = getLogForPackage(packageInfo)
+
+  const logFile = fs.createWriteStream(logFileName, { flags: 'a' })
 
   const proc = spawn('yarn', ['start'], {
     cwd: packageDir,
   })
 
-  proc.stdout.pipe(logFile)
-  proc.stderr.pipe(logFile)
+  proc.stdout.pipe(transformOutStream).pipe(logFile)
+  proc.stderr.pipe(transformErrStream).pipe(logFile)
 
   console.log(
     chalk.green.bold(
@@ -126,7 +129,6 @@ export const watchAndRunRuntimePackage = (
     return acc
   }, {})
 
-  // eslint-disable-next-line security/detect-non-literal-fs-filename
   chokidar
     .watch(wsRoot, {
       ignored: ['**/node_modules/**', '**/dist/**'],
