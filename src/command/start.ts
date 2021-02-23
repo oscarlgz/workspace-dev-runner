@@ -6,9 +6,12 @@ import {
 import { buildDependencies, watchAndRunRuntimePackage } from '../util/build'
 import { getOrderedDependenciesForPackages } from '../util/dependencies'
 import { ProgramStartOptions } from '../types'
+import { writePackageLogFile } from '../util/pfile'
 
 export const runDev = async (options: ProgramStartOptions) => {
   const runtimePackageInfoList = await getRuntimePackageInfo(options)
+
+  runtimePackageInfoList.map((packageInfo) => writePackageLogFile(packageInfo))
 
   const packagePath = getPackageDir(runtimePackageInfoList[0])
 
