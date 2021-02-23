@@ -10,7 +10,7 @@ export const getTsConfigHash = (packageInfo: PackageInfo) => {
 
   const tsConfigPath = join(packageDir, 'tsconfig.json')
 
-  // eslint-disable-next-line security/detect-non-literal-fs-filename, @typescript-eslint/unbound-method
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   const tsConfig = ts.readConfigFile(tsConfigPath, ts.sys.readFile)
 
   const parsedTsConfig = ts.parseJsonConfigFileContent(tsConfig.config, ts.sys, packageDir)
