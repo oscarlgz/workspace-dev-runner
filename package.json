@@ -33,7 +33,6 @@
     "commander": "^7.1.0",
     "dependency-graph": "^0.10.0",
     "folder-hash": "^4.0.0",
-    "glob": "^7.1.6",
     "inquirer": "^7.3.3",
     "lodash": "^4.17.20",
     "ora": "^5.3.0",
