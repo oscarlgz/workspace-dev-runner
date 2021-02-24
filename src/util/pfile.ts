@@ -1,7 +1,6 @@
 import { join } from 'path'
 import { readFileSync, writeFileSync } from 'fs'
 import { assocPath } from 'lodash/fp'
-import tempy from 'tempy'
 import { PackageInfo } from '../types'
 import { getWsRoot } from './workspace'
 
@@ -42,22 +41,6 @@ export const getHashForPackage = (packageInfo: PackageInfo) => {
   }
 }
 
-export const getLogForPackage = (packageInfo: PackageInfo) => {
-  try {
-    const pfile = readPFile()
-
-    const logFileName = pfile.logs?.[packageInfo.name]
-
-    if (!logFileName) {
-      throw new Error(`No logfile entry for ${packageInfo.name}`)
-    }
-
-    return logFileName
-  } catch (_) {
-    throw new Error(`Could not read pfile`)
-  }
-}
-
 export const writePackageHash = (packageInfo: PackageInfo, hash: string) => {
   let data: PFile
 
@@ -67,22 +50,6 @@ export const writePackageHash = (packageInfo: PackageInfo, hash: string) => {
     data = assocPath(['hashes', packageInfo.name], hash, pFile)
   } catch (e) {
     data = assocPath(['hashes', packageInfo.name], hash, {})
-  }
-
-  writePFile(data)
-}
-
-export const writePackageLogFile = (packageInfo: PackageInfo) => {
-  let data: PFile
-
-  const logFileName = tempy.file({ extension: 'log' })
-
-  try {
-    const pFile = readPFile()
-
-    data = assocPath(['logs', packageInfo.name], logFileName, pFile)
-  } catch (e) {
-    data = assocPath(['logs', packageInfo.name], logFileName, {})
   }
 
   writePFile(data)

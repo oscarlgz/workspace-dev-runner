@@ -1,3 +1,4 @@
+import { connect } from '../util/pm2'
 import {
   getPackageDir,
   getPackageInfosFromPackagePath,
@@ -6,12 +7,11 @@ import {
 import { buildDependencies, watchAndRunRuntimePackage } from '../util/build'
 import { getOrderedDependenciesForPackages } from '../util/dependencies'
 import { ProgramStartOptions } from '../types'
-import { writePackageLogFile } from '../util/pfile'
 
 export const runDev = async (options: ProgramStartOptions) => {
-  const runtimePackageInfoList = await getRuntimePackageInfo(options)
+  await connect()
 
-  runtimePackageInfoList.map((packageInfo) => writePackageLogFile(packageInfo))
+  const runtimePackageInfoList = await getRuntimePackageInfo(options)
 
   const packagePath = getPackageDir(runtimePackageInfoList[0])
 
@@ -27,5 +27,7 @@ export const runDev = async (options: ProgramStartOptions) => {
     initial: true,
   })
 
-  watchAndRunRuntimePackage(runtimePackageInfoList, options)
+  watchAndRunRuntimePackage(runtimePackageInfoList, options).catch((e) => {
+    throw e
+  })
 }

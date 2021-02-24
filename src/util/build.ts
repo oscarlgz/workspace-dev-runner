@@ -1,7 +1,5 @@
-import fs from 'fs'
 import chalk from 'chalk'
 import chokidar from 'chokidar'
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 import Bromise from 'bluebird'
 import { intersection } from 'lodash/fp'
 import { PackageInfo, PackageInfos, ProgramStartOptions } from '../types'
@@ -11,10 +9,10 @@ import {
   getPackageInfosFromPackagePath,
 } from './package'
 import { Spinner } from './spinner'
+import * as pm2 from './pm2'
 import { getPackageHash, shouldRebuild } from './packageHash'
-import { getLogForPackage, writePackageHash } from './pfile'
+import { writePackageHash } from './pfile'
 import { clearConsole, runAsync } from './process'
-import { transformErrStream, transformOutStream } from './stream'
 import { filterOutRuntimePackages, getWsRoot, isRootLockfile } from './workspace'
 import { getOrderedDependenciesForPackages, getOrderedDependentsForPackage } from './dependencies'
 
@@ -88,19 +86,14 @@ export const buildDependencies = (
     return resolve(true)
   })
 
-export const spawnRuntime = (packageInfo: PackageInfo) => {
-  const packageDir = getPackageDir(packageInfo)
+export const spawnRuntime = async (packageInfo: PackageInfo) => {
+  const cwd = getPackageDir(packageInfo)
 
-  const logFileName = getLogForPackage(packageInfo)
-
-  const logFile = fs.createWriteStream(logFileName, { flags: 'a' })
-
-  const proc = spawn('yarn', ['start'], {
-    cwd: packageDir,
+  await pm2.start({
+    name: packageInfo.name,
+    script: 'yarn start',
+    cwd,
   })
-
-  proc.stdout.pipe(transformOutStream).pipe(logFile)
-  proc.stderr.pipe(transformErrStream).pipe(logFile)
 
   console.log(
     chalk.green.bold(
@@ -109,11 +102,9 @@ export const spawnRuntime = (packageInfo: PackageInfo) => {
       )}, see logs by running ${chalk.white.bold(`ws-dev-runner logs ${packageInfo.name}`)}`
     )
   )
-
-  return proc
 }
 
-export const watchAndRunRuntimePackage = (
+export const watchAndRunRuntimePackage = async (
   runtimePackageInfoList: PackageInfo[],
   options: ProgramStartOptions
 ) => {
@@ -121,13 +112,9 @@ export const watchAndRunRuntimePackage = (
 
   let dependencyBuilder: Bromise<boolean> | undefined | null
 
-  const runtimeProcMap = runtimePackageInfoList.reduce<
-    Record<string, ChildProcessWithoutNullStreams>
-  >((acc, packageInfo) => {
-    acc[packageInfo.name] = spawnRuntime(packageInfo)
-
-    return acc
-  }, {})
+  for (const packageInfo of runtimePackageInfoList) {
+    await spawnRuntime(packageInfo)
+  }
 
   chokidar
     .watch(wsRoot, {
@@ -168,22 +155,26 @@ export const watchAndRunRuntimePackage = (
         return
       }
 
+      const restartProcesses: PackageInfo[] = []
+
       clearConsole()
 
       if (dependencyBuilder) {
         dependencyBuilder.cancel()
       }
 
-      for (const key of Object.keys(runtimeProcMap)) {
+      for (const packageInfo of runtimePackageInfoList) {
         if (
-          intersection(
-            getOrderedDependenciesForPackages([packageMap[key]], packageMap),
-            buildArgs[0]
-          ).length
+          intersection(getOrderedDependenciesForPackages([packageInfo], packageMap), buildArgs[0])
+            .length
         ) {
-          console.log(chalk.magenta.bold(`ℹ Reloading runtime: ${chalk.white.bold(key)}`))
+          console.log(
+            chalk.magenta.bold(`ℹ Reloading runtime: ${chalk.white.bold(packageInfo.name)}`)
+          )
 
-          runtimeProcMap[key].kill()
+          restartProcesses.push(packageInfo)
+
+          await pm2.stop(packageInfo.name)
         }
       }
 
@@ -194,10 +185,8 @@ export const watchAndRunRuntimePackage = (
       dependencyBuilder = null
 
       if (success) {
-        for (const key of Object.keys(runtimeProcMap)) {
-          if (runtimeProcMap[key].killed) {
-            runtimeProcMap[key] = spawnRuntime(packageMap[key])
-          }
+        for (const packageInfo of restartProcesses) {
+          await spawnRuntime(packageInfo)
         }
       }
     })
