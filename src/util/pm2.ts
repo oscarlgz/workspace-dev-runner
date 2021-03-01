@@ -33,3 +33,14 @@ export const stop = (process: string | number): Promise<Error | undefined> =>
       }
     })
   })
+
+export const deleteProcess = (process: string | number): Promise<Error | undefined> =>
+  new Promise((resolve, reject) => {
+    pm2.delete(process, (err) => {
+      if (err) {
+        reject(err)
+      } else {
+        resolve(undefined)
+      }
+    })
+  })

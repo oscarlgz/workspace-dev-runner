@@ -1,4 +1,4 @@
-import { connect } from '../util/pm2'
+import { connect, deleteProcess } from '../util/pm2'
 import {
   getPackageDir,
   getPackageInfosFromPackagePath,
@@ -6,6 +6,7 @@ import {
 } from '../util/package'
 import { buildDependencies, watchAndRunRuntimePackage } from '../util/build'
 import { getOrderedDependenciesForPackages } from '../util/dependencies'
+import { cleanup } from '../util/cleanup'
 import { ProgramStartOptions } from '../types'
 
 export const runDev = async (options: ProgramStartOptions) => {
@@ -29,5 +30,11 @@ export const runDev = async (options: ProgramStartOptions) => {
 
   watchAndRunRuntimePackage(runtimePackageInfoList, options).catch((e) => {
     throw e
+  })
+
+  cleanup(() => {
+    Promise.all(runtimePackageInfoList.map(({ name }) => deleteProcess(name))).finally(() => {
+      process.exit()
+    })
   })
 }
