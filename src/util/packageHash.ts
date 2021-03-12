@@ -29,7 +29,7 @@ export const getPackageHash = async (packageInfo: PackageInfo, packageMap: Packa
   return [hash, tsConfigHash, tsVersion, dependencyHashes].join('-')
 }
 
-export const shouldRebuild = async (packageInfo: PackageInfo, packageMap: PackageInfos) => {
+export const shouldRebuildPackage = async (packageInfo: PackageInfo, packageMap: PackageInfos) => {
   const storedHash = getHashForPackage(packageInfo)
 
   const currentHash = await getPackageHash(packageInfo, packageMap)

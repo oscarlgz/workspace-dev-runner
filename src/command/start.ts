@@ -1,10 +1,11 @@
-import { connect, deleteProcess } from '../util/pm2'
+import { connect } from '../util/pm2'
 import {
   getPackageDir,
   getPackageInfosFromPackagePath,
   getRuntimePackageInfo,
 } from '../util/package'
-import { buildDependencies, watchAndRunRuntimePackage } from '../util/build'
+import { buildDependencies } from '../util/build'
+import { watchAndRunRuntimePackage } from '../util/runner'
 import { getOrderedDependenciesForPackages } from '../util/dependencies'
 import { cleanup } from '../util/cleanup'
 import { ProgramStartOptions } from '../types'
@@ -23,17 +24,20 @@ export const runDev = async (options: ProgramStartOptions) => {
     packageMap
   )
 
-  await buildDependencies(orderedDependencyList, packageMap, {
-    force: options.force,
-    initial: true,
+  await buildDependencies({
+    orderedDependencyList,
+    packageMap,
+    options: {
+      force: options.force,
+    },
+  }).promise.catch(() => {
+    process.exit(1)
   })
 
-  watchAndRunRuntimePackage(runtimePackageInfoList, options).catch((e) => {
-    throw e
-  })
+  const cancel = watchAndRunRuntimePackage(runtimePackageInfoList, options)
 
   cleanup(() => {
-    Promise.all(runtimePackageInfoList.map(({ name }) => deleteProcess(name))).finally(() => {
+    cancel(() => {
       process.exit()
     })
   })

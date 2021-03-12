@@ -1,193 +1,127 @@
 import chalk from 'chalk'
-import chokidar from 'chokidar'
-import Bromise from 'bluebird'
-import { intersection } from 'lodash/fp'
-import { PackageInfo, PackageInfos, ProgramStartOptions } from '../types'
-import {
-  createPackageLookupByPathFunc,
-  getPackageDir,
-  getPackageInfosFromPackagePath,
-} from './package'
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
+import { PackageInfos } from '../types'
+import { getPackageDir } from './package'
 import { Spinner } from './spinner'
-import * as pm2 from './pm2'
-import { getPackageHash, shouldRebuild } from './packageHash'
+import { getPackageHash, shouldRebuildPackage } from './packageHash'
+import { Queue } from './queue'
 import { writePackageHash } from './pfile'
-import { clearConsole, runAsync } from './process'
-import { filterOutRuntimePackages, getWsRoot, isRootLockfile } from './workspace'
-import { getOrderedDependenciesForPackages, getOrderedDependentsForPackage } from './dependencies'
 
-type BuildOptions = {
-  initial?: boolean
-  force?: boolean
+export type BuildArgs = {
+  orderedDependencyList: string[]
+  packageMap: PackageInfos
+  options: {
+    force?: boolean
+  }
 }
 
-export const buildDependencies = (
-  orderedDependencyList: string[],
-  packageMap: PackageInfos,
-  options: BuildOptions
-): Bromise<boolean> =>
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  new Bromise(async (resolve, reject, onCancel) => {
-    let spinner: Spinner
+const buildPackage = ({
+  index,
+  orderedDependencyList,
+  packageMap,
+  options,
+}: BuildArgs & { index: number }) => {
+  let spinner: Spinner | undefined
 
-    let proc: ReturnType<typeof runAsync> | undefined
+  let proc: ChildProcessWithoutNullStreams | undefined
 
-    onCancel?.(() => {
-      spinner.stop()
-      proc?.cancel()
-    })
+  const pkgName = orderedDependencyList[index]
 
-    for (const [i, pgkName] of orderedDependencyList.entries()) {
-      const progress = chalk.bold.green(`[${i + 1}/${orderedDependencyList.length}]`)
+  const packageInfo = packageMap[pkgName]
 
-      spinner = new Spinner().start()
+  const packageDirPath = getPackageDir(packageInfo)
 
-      spinner.update(`${progress} Building package ${pgkName}`)
+  const progress = chalk.bold.green(`[${index + 1}/${orderedDependencyList.length}]`)
 
-      const packageInfo = packageMap[pgkName]
+  const promise = new Promise((resolve, reject) => {
+    shouldRebuildPackage(packageInfo, packageMap)
+      .then((isRebuildNeeded) => {
+        spinner = new Spinner().start()
 
-      const packageDirPath = getPackageDir(packageInfo)
+        spinner.update(`${progress} Building package ${pkgName}`)
 
-      if (options?.force === true || (await shouldRebuild(packageInfo, packageMap))) {
-        try {
-          proc = runAsync('yarn', ['build'], {
+        if (isRebuildNeeded || options.force) {
+          proc = spawn('yarn', ['build'], {
             cwd: packageDirPath,
           })
 
-          await proc
-        } catch (e) {
-          spinner.fail(`${progress} Failed to build package ${pgkName}`)
+          const output: Array<{ stdout: string } | { stderr: string }> = []
 
-          e.output.forEach((msg: any) => {
-            if ('stderr' in msg) {
-              console.error(chalk.bold.red(`⚠️  ${msg.stderr}`))
-            } else {
-              console.log(chalk.white(`${msg.stdout}`))
-            }
+          proc.stdout?.on('data', (data) => {
+            output.push({ stdout: data.toString() })
           })
 
-          if (options?.initial === true) {
-            process.exit(1)
-          } else {
-            return reject(false)
-          }
+          proc.stderr?.on('data', (data) => {
+            output.push({ stderr: data.toString() })
+          })
+
+          proc.on('close', (code) => {
+            if (code === 0) {
+              getPackageHash(packageInfo, packageMap)
+                .then((hash) => {
+                  writePackageHash(packageInfo, hash)
+
+                  spinner!.succeed(`${progress} Built package ${pkgName}`)
+
+                  resolve(undefined)
+                })
+                .catch(reject)
+            } else {
+              spinner!.fail(`${progress} Failed to build package ${pkgName}`)
+
+              output.forEach((msg: any) => {
+                if ('stderr' in msg) {
+                  console.error(chalk.bold.red(`⚠️  ${msg.stderr}`))
+                } else {
+                  console.log(chalk.white(`${msg.stdout}`))
+                }
+              })
+
+              reject(new Error(`Could not build package ${pkgName}`))
+            }
+          })
+        } else {
+          spinner.succeed(`${progress} ${pkgName} already compiled`)
+
+          resolve(undefined)
         }
-
-        const hash = await getPackageHash(packageInfo, packageMap)
-
-        writePackageHash(packageInfo, hash)
-
-        spinner.succeed(`${progress} Built package ${pgkName}`)
-      } else {
-        spinner.succeed(`${progress} ${pgkName} already compiled`)
-      }
-    }
-
-    return resolve(true)
+      })
+      .catch(reject)
   })
 
-export const spawnRuntime = async (packageInfo: PackageInfo) => {
-  const cwd = getPackageDir(packageInfo)
+  return {
+    cancel: () => {
+      spinner?.stop()
 
-  await pm2.start({
-    name: packageInfo.name,
-    script: 'yarn start',
-    cwd,
-  })
-
-  console.log(
-    chalk.green.bold(
-      `▶ Running package ${chalk.white.bold(
-        packageInfo.name
-      )}, see logs by running ${chalk.white.bold(`ws-dev-runner logs ${packageInfo.name}`)}`
-    )
-  )
+      proc?.kill()
+    },
+    promise,
+  }
 }
 
-export const watchAndRunRuntimePackage = async (
-  runtimePackageInfoList: PackageInfo[],
-  options: ProgramStartOptions
-) => {
-  const wsRoot = getWsRoot()
+export const buildDependencies = (buildArgs: BuildArgs) => {
+  const queue = new Queue(buildPackage)
 
-  let dependencyBuilder: Bromise<boolean> | undefined | null
+  buildArgs.orderedDependencyList.forEach((_, index) => {
+    queue.push({ ...buildArgs, index })
+  })
 
-  for (const packageInfo of runtimePackageInfoList) {
-    await spawnRuntime(packageInfo)
+  const promise = new Promise((resolve, reject) => {
+    queue.on('finished', () => {
+      resolve(undefined)
+    })
+
+    queue.on('stopped', () => {
+      reject()
+    })
+  })
+
+  queue.start()
+
+  return {
+    cancel: () => {
+      queue.stop()
+    },
+    promise,
   }
-
-  chokidar
-    .watch(wsRoot, {
-      ignored: ['**/node_modules/**', '**/dist/**'],
-      ignoreInitial: true,
-    })
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    .on('all', async (_, path) => {
-      const packagePath = getPackageDir(runtimePackageInfoList[0])
-
-      const packageMap = getPackageInfosFromPackagePath(packagePath)
-
-      const packageLookup = createPackageLookupByPathFunc(packageMap)
-
-      const runtimePackageDependencyList = getOrderedDependenciesForPackages(
-        runtimePackageInfoList,
-        packageMap
-      )
-
-      const packageName = packageLookup(path)
-
-      let buildArgs: [string[], PackageInfos, ProgramStartOptions]
-
-      if (isRootLockfile(path)) {
-        buildArgs = [runtimePackageDependencyList, packageMap, { ...options, force: true }]
-      } else if (packageName && runtimePackageDependencyList.includes(packageName)) {
-        const orderedDependencyList = [
-          packageName,
-          ...getOrderedDependentsForPackage(packageName, packageMap),
-        ]
-
-        buildArgs = [
-          filterOutRuntimePackages(orderedDependencyList, packageMap),
-          packageMap,
-          options,
-        ]
-      } else {
-        return
-      }
-
-      const restartProcesses: PackageInfo[] = []
-
-      clearConsole()
-
-      if (dependencyBuilder) {
-        dependencyBuilder.cancel()
-      }
-
-      for (const packageInfo of runtimePackageInfoList) {
-        if (
-          intersection(getOrderedDependenciesForPackages([packageInfo], packageMap), buildArgs[0])
-            .length
-        ) {
-          console.log(
-            chalk.magenta.bold(`ℹ Reloading runtime: ${chalk.white.bold(packageInfo.name)}`)
-          )
-
-          restartProcesses.push(packageInfo)
-
-          await pm2.stop(packageInfo.name)
-        }
-      }
-
-      dependencyBuilder = buildDependencies(...buildArgs)
-
-      const success = await dependencyBuilder
-
-      dependencyBuilder = null
-
-      if (success) {
-        for (const packageInfo of restartProcesses) {
-          await spawnRuntime(packageInfo)
-        }
-      }
-    })
 }

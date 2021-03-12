@@ -1,9 +1,4 @@
-import Bromise from 'bluebird'
 import { createProgram } from './program'
-
-Bromise.config({
-  cancellation: true,
-})
 
 const program = createProgram()
 
