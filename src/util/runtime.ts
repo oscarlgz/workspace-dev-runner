@@ -16,7 +16,7 @@ export const spawnRuntime = async (packageInfo: PackageInfo) => {
     chalk.green.bold(
       `▶ Running package ${chalk.white.bold(
         packageInfo.name
-      )}, see logs by running ${chalk.white.bold(`ws-dev-runner logs ${packageInfo.name}`)}`
+      )}, see logs by running ${chalk.white.bold(`ws-dev-runner logs -p ${packageInfo.name}`)}`
     )
   )
 }

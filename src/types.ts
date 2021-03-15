@@ -6,3 +6,7 @@ export type ProgramStartOptions = {
   force: boolean
   packageNames: string[]
 }
+
+export type ProgramLogsOptions = {
+  packageName: string
+}

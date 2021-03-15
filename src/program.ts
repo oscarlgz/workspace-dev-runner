@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { runDev } from './command/start'
+import { runLogs } from './command/logs'
 
 const program = new Command()
 
@@ -12,6 +13,12 @@ export const createProgram = () => {
     .option('-f, --force', 'Force building dependencies even if exist', false)
     .option('-p, --package-names <package...>', 'Build for specified packages')
     .action(runDev)
+
+  program
+    .command('logs')
+    .description('Show output for package')
+    .requiredOption('-p, --package-name <package>', '--package-name not specified')
+    .action(runLogs)
 
   return program
 }
